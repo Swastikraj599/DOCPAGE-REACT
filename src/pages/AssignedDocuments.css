@@ -1,0 +1,136 @@
+/* AssignedDocuments.css */
+
+/* Container styling */
+.p-4 {
+  padding: 1rem;
+}
+
+.text-white {
+  color: #ffffff;
+}
+
+.text-3xl {
+  font-size: 1.75rem;
+  font-weight: bold;
+  margin-bottom: 1rem;
+  color: #1980e7;
+}
+
+/* Card/table wrapper */
+.bg-gray-800 {
+  background-color: black;
+  border-radius: 0.5rem;
+  padding: 1rem;
+}
+
+.shadow-lg {
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+}
+
+/* Table styling */
+table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+th,
+td {
+  padding: 0.75rem 1rem;
+  text-align: left;
+  font-size: 1rem;
+}
+
+thead tr {
+  background-color: #2d2d2d;
+  color: #ffffff;
+  text-transform: uppercase;
+  font-weight: bold;
+}
+
+tbody tr {
+  border-bottom: 1px solid #3a3a3a;
+  transition: background-color 0.2s;
+}
+
+tbody tr:hover {
+  background-color: #333;
+}
+
+/* Icon buttons */
+button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.5rem;
+  border-radius: 0.375rem;
+  color: #fff;
+  transition: background-color 0.2s ease;
+  font-size: 1rem;
+  cursor: pointer;
+  border: none;
+}
+
+button svg {
+  width: 1rem;
+  height: 1rem;
+}
+
+/* Status buttons spacing */
+.space-x-2 > *:not(:last-child) {
+  margin-right: 0.5rem;
+}
+
+/* Individual colors (already added as Tailwind classes in JSX) */
+.bg-green-600:hover {
+  background-color: #16a34a;
+}
+
+.bg-blue-600:hover {
+  background-color: #2563eb;
+}
+
+.bg-orange-500:hover {
+  background-color: #f97316;
+}
+
+.bg-yellow-500:hover {
+  background-color: #facc15;
+}
+
+.bg-red-600:hover {
+  background-color: #dc2626;
+}
+
+/* Responsive improvement */
+@media (max-width: 768px) {
+  table,
+  thead,
+  tbody,
+  th,
+  td,
+  tr {
+    display: block;
+  }
+
+  thead {
+    display: none;
+  }
+
+  tr {
+    margin-bottom: 1rem;
+  }
+
+  td {
+    display: flex;
+    justify-content: space-between;
+    padding: 0.75rem;
+    border: 1px solid #3a3a3a;
+    background-color: #2a2a2a;
+  }
+
+  td::before {
+    content: attr(data-label);
+    font-weight: bold;
+    text-transform: capitalize;
+  }
+}

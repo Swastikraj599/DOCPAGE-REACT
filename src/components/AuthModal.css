@@ -1,0 +1,157 @@
+.auth-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background-color: rgba(0, 0, 0, 0.6);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+}
+
+.auth-modal {
+  background-color: #1e1e1e;
+  padding: 60px;
+  border-radius: 12px;
+  width: 100%;
+  max-width: 400px;
+  color: white;
+  font-family: 'Poppins', sans-serif;
+  position: relative;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.5);
+  text-align: center;
+}
+
+.close-button {
+  position: absolute;
+  top: 15px;
+  right: 15px;
+  background: transparent;
+  border: none;
+  color: #ccc;
+  font-size: 24px;
+  cursor: pointer;
+}
+
+.auth-modal input {
+  width: 100%;
+  padding: 12px 15px;
+  margin: 10px 0;
+  border: none;
+  border-radius: 8px;
+  background-color: #2e2e2e;
+  color: white;
+  font-size: 1rem;
+  outline: none;
+}
+
+.auth-btn {
+  width: 100%;
+  padding: 12px;
+  background-color: #4CAF50;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: 1rem;
+  font-weight: bold;
+  margin-top: 15px;
+  cursor: pointer;
+}
+
+.auth-btn:hover {
+  background-color: #43a047;
+}
+
+.google-btn {
+  width: 100%;
+  padding: 12px;
+  background-color: #db4437;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: 1rem;
+  margin-top: 10px;
+  cursor: pointer;
+}
+
+.google-btn i {
+  margin-right: 8px;
+}
+
+.google-btn:hover {
+  background-color: #c33d2e;
+}
+
+.toggle-link {
+  margin-top: 20px;
+  color: #aaa;
+  font-size: 0.9rem;
+}
+
+.toggle-link span {
+  color: #2196F3;
+  cursor: pointer;
+}
+
+.toggle-link span:hover {
+  text-decoration: underline;
+}
+
+.error-message {
+  color: #ff4d4f;
+  margin: 10px 0;
+  font-weight: bold;
+  font-size: 0.9rem;
+}
+
+.submit-btn {
+  background-color: #4caf50;
+  color: white;
+  padding: 12px;
+  width: 100%;
+  border: none;
+  border-radius: 8px;
+  font-weight: bold;
+  cursor: pointer;
+  margin-top: 15px;
+  transition: background-color 0.3s ease;
+}
+
+.submit-btn:hover {
+  background-color: #43a047;
+}
+
+.google-btn {
+  background-color: #db4437;
+  color: white;
+  padding: 12px;
+  width: 100%;
+  border: none;
+  border-radius: 8px;
+  font-weight: bold;
+  cursor: pointer;
+  margin-top: 10px;
+  transition: background-color 0.3s ease;
+}
+
+.google-btn i {
+  margin-right: 8px;
+}
+
+.google-btn:hover {
+  background-color: #c33d2e;
+}
+
+.toggle-text {
+  margin-top: 15px;
+  color: #aaa;
+  font-size: 0.9rem;
+}
+
+.toggle-link {
+  color: #2196F3;
+  cursor: pointer;
+  text-decoration: underline;
+}
