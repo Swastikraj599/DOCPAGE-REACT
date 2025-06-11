@@ -4,52 +4,56 @@ import { FaEye, FaEdit, FaTrash, FaShareAlt, FaInfoCircle } from "react-icons/fa
 import Swal from "sweetalert2";
 import "sweetalert2/dist/sweetalert2.min.css";
 import "./AssignedDocuments.css";
-import { jsPDF } from "jspdf";
+import apiService from "../services/api";
+import { useAuth } from "../context/AuthContext";
 
 const AssignedDocuments = () => {
+  const { hasPermission } = useAuth();
   const [documents, setDocuments] = useState([]);
+  const [loading, setLoading] = useState(false);
 
-  // Function to load documents from localStorage
-  const loadDocuments = () => {
-    const storedDocs = JSON.parse(localStorage.getItem("documents")) || [];
-    setDocuments(storedDocs);
+  // Function to load documents from API
+  const loadDocuments = async () => {
+    try {
+      setLoading(true);
+      const docs = await apiService.getDocuments();
+      setDocuments(docs);
+    } catch (error) {
+      console.error('Error loading documents:', error);
+      Swal.fire('Error', 'Failed to load documents', 'error');
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => {
     loadDocuments();
-    
-    // Listen for storage changes to update documents when they're added from other components
-    const handleStorageChange = (e) => {
-      if (e.key === 'documents') {
-        loadDocuments();
-      }
-    };
-
-    window.addEventListener('storage', handleStorageChange);
-    
-    // Also listen for custom events in case documents are updated in the same tab
-    const handleDocumentUpdate = () => {
-      loadDocuments();
-    };
-
-    window.addEventListener('documentsUpdated', handleDocumentUpdate);
-
-    return () => {
-      window.removeEventListener('storage', handleStorageChange);
-      window.removeEventListener('documentsUpdated', handleDocumentUpdate);
-    };
   }, []);
 
-  const handlePreview = (doc) => {
-    Swal.fire({
-      title: doc.name,
-      html: `<iframe src="${doc.fileDataUrl}" width="100%" height="400px"></iframe>`,
-      showCloseButton: true,
-      width: 800,
-    });
+  const handlePreview = async (doc) => {
+    try {
+      const response = await apiService.getDocumentFile(doc.id);
+      const blob = await response.blob();
+      const fileURL = URL.createObjectURL(blob);
+      
+      Swal.fire({
+        title: doc.name,
+        html: `<iframe src="${fileURL}" width="100%" height="400px"></iframe>`,
+        showCloseButton: true,
+        width: 800,
+      });
+    } catch (error) {
+      console.error('Preview error:', error);
+      Swal.fire('Error', 'Failed to preview document. You may not have permission to view this document.', 'error');
+    }
   };
 
-  const handleDelete = (index) => {
+  const handleDelete = async (doc) => {
+    if (!hasPermission('delete_documents')) {
+      Swal.fire('Access Denied', 'You do not have permission to delete documents', 'error');
+      return;
+    }
+
     Swal.fire({
       title: "Are you sure?",
       text: "This document will be deleted!",
@@ -58,22 +62,26 @@ const AssignedDocuments = () => {
       confirmButtonColor: "#d33",
       cancelButtonColor: "#3085d6",
       confirmButtonText: "Yes, delete it!",
-    }).then((result) => {
+    }).then(async (result) => {
       if (result.isConfirmed) {
-        const newDocs = [...documents];
-        newDocs.splice(index, 1);
-        setDocuments(newDocs);
-        localStorage.setItem("documents", JSON.stringify(newDocs));
-        
-        // Dispatch custom event to notify other components
-        window.dispatchEvent(new CustomEvent('documentsUpdated'));
-        
-        Swal.fire("Deleted!", "The document has been deleted.", "success");
+        try {
+          await apiService.deleteDocument(doc.id);
+          await loadDocuments(); // Reload documents
+          Swal.fire("Deleted!", "The document has been deleted.", "success");
+        } catch (error) {
+          console.error("Error deleting document:", error);
+          Swal.fire("Error", error.message || "Failed to delete document", "error");
+        }
       }
     });
   };
 
   const handleEdit = (doc) => {
+    if (!hasPermission('edit_documents')) {
+      Swal.fire('Access Denied', 'You do not have permission to edit documents', 'error');
+      return;
+    }
+
     Swal.fire({
       title: 'Edit Document',
       html: `
@@ -84,25 +92,13 @@ const AssignedDocuments = () => {
           </div>
           
           <div style="margin-bottom: 15px;">
-            <label style="display: block; margin-bottom: 5px; font-weight: bold;">Category:</label>
-            <select id="edit-category" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
-              <option value="Reports" ${doc.category === 'Reports' ? 'selected' : ''}>Reports</option>
-              <option value="Contracts" ${doc.category === 'Contracts' ? 'selected' : ''}>Contracts</option>
-              <option value="Invoices" ${doc.category === 'Invoices' ? 'selected' : ''}>Invoices</option>
-              <option value="Receipts" ${doc.category === 'Receipts' ? 'selected' : ''}>Receipts</option>
-              <option value="Presentations" ${doc.category === 'Presentations' ? 'selected' : ''}>Presentations</option>
-              <option value="Others" ${doc.category === 'Others' ? 'selected' : ''}>Others</option>
-            </select>
-          </div>
-          
-          <div style="margin-bottom: 15px;">
             <label style="display: block; margin-bottom: 5px; font-weight: bold;">Author:</label>
             <input type="text" id="edit-author" value="${doc.author || ''}" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
           </div>
           
           <div style="margin-bottom: 15px;">
             <label style="display: block; margin-bottom: 5px; font-weight: bold;">Date:</label>
-            <input type="date" id="edit-date" value="${doc.date || ''}" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
+            <input type="date" id="edit-date" value="${doc.document_date || ''}" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
           </div>
           
           <div style="margin-bottom: 15px;">
@@ -117,115 +113,73 @@ const AssignedDocuments = () => {
       width: '500px',
       preConfirm: () => {
         const name = document.getElementById('edit-name').value;
-        const category = document.getElementById('edit-category').value;
         const author = document.getElementById('edit-author').value;
         const date = document.getElementById('edit-date').value;
         const description = document.getElementById('edit-description').value;
 
-        if (!name.trim()) {
-          Swal.showValidationMessage('Document name is required');
-          return false;
-        }
-        if (!category) {
-          Swal.showValidationMessage('Category is required');
-          return false;
-        }
-        if (!author.trim()) {
-          Swal.showValidationMessage('Author is required');
-          return false;
-        }
-        if (!date) {
-          Swal.showValidationMessage('Date is required');
-          return false;
-        }
-        if (!description.trim()) {
-          Swal.showValidationMessage('Description is required');
+        if (!name.trim() || !author.trim() || !date || !description.trim()) {
+          Swal.showValidationMessage('All fields are required');
           return false;
         }
 
-        return { name, category, author, date, description };
+        return { name, author, documentDate: date, description };
       }
-    }).then((result) => {
+    }).then(async (result) => {
       if (result.isConfirmed) {
         try {
-          // Get current documents from localStorage
-          const storedDocs = localStorage.getItem('documents');
-          const allDocs = storedDocs ? JSON.parse(storedDocs) : [];
-          
-          // Find and update the document
-          const updatedDocs = allDocs.map(document => {
-            if (document.id === doc.id) {
-              return {
-                ...document,
-                name: result.value.name,
-                category: result.value.category,
-                author: result.value.author,
-                date: result.value.date,
-                description: result.value.description
-              };
-            }
-            return document;
-          });
-          
-          // Save back to localStorage
-          localStorage.setItem('documents', JSON.stringify(updatedDocs));
-          
-          // Update local state
-          setDocuments(updatedDocs);
-          
-          // Dispatch custom event to notify other components
-          window.dispatchEvent(new CustomEvent('documentsUpdated'));
-          
+          await apiService.updateDocument(doc.id, result.value);
+          await loadDocuments(); // Reload documents
           Swal.fire('Success!', 'Document updated successfully!', 'success');
         } catch (error) {
           console.error("Error updating document:", error);
-          Swal.fire('Error', 'Failed to update document', 'error');
+          Swal.fire('Error', error.message || 'Failed to update document', 'error');
         }
       }
     });
   };
 
-  const handleShare = (doc) => {
-    Swal.fire({
-      title: "Send via Email",
-      input: "email",
-      inputLabel: "Enter recipient email",
-      inputPlaceholder: "example@example.com",
-      showCancelButton: true,
-      confirmButtonText: "Send Email",
-      preConfirm: (email) => {
-        if (!email) return Swal.showValidationMessage("Email is required");
-        return email;
-      },
-    }).then(async (result) => {
-      if (result.isConfirmed) {
-        try {
-          const res = await fetch("http://localhost:5000/send-email", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              to: result.value,
-              subject: `Shared Document: ${doc.name}`,
-              text: "Here is the document you requested.",
-              attachment: {
-                filename: `${doc.name}.pdf`,
-                content: doc.fileDataUrl.split(",")[1],
-                contentType: "application/pdf",
-              },
-            }),
-          });
+  const handleShare = async (doc) => {
+    if (!hasPermission('share_documents')) {
+      Swal.fire('Access Denied', 'You do not have permission to share documents', 'error');
+      return;
+    }
 
-          const data = await res.json();
-          if (res.ok) {
-            Swal.fire("Success", "Email sent successfully", "success");
-          } else {
-            Swal.fire("Error", data.error || "Failed to send email", "error");
-          }
-        } catch (err) {
-          Swal.fire("Error", "Something went wrong", "error");
+    try {
+      const response = await apiService.getDocumentFile(doc.id);
+      const blob = await response.blob();
+      const fileURL = URL.createObjectURL(blob);
+
+      // Create download link
+      const link = document.createElement("a");
+      link.href = fileURL;
+      link.download = doc.file_name || `${doc.name}.pdf`;
+      link.click();
+
+      Swal.fire({
+        title: "Send Document",
+        icon: "info",
+        html: `
+          <p>The document <b>${doc.name}</b> has been downloaded.</p>
+          <p>Please <b>attach it manually</b> when sending via email or WhatsApp.</p>
+        `,
+        showDenyButton: true,
+        showCancelButton: true,
+        confirmButtonText: "Email",
+        denyButtonText: "WhatsApp",
+      }).then((result) => {
+        if (result.isConfirmed) {
+          const subject = encodeURIComponent(`Shared Document: ${doc.name}`);
+          const body = encodeURIComponent(`Hi,\n\nPlease find the attached document: ${doc.name}.\n\nDescription: ${doc.description}\n\nThanks!`);
+          window.location.href = `mailto:?subject=${subject}&body=${body}`;
+        } else if (result.isDenied) {
+          const text = encodeURIComponent(`📄 *${doc.name}*\n\n${doc.description}\n\nI've just downloaded the file. Sending it to you shortly.`);
+          window.open(`https://wa.me/?text=${text}`, "_blank");
         }
-      }
-    });
+      });
+    } catch (error) {
+      console.error('Share error:', error);
+      Swal.fire('Error', 'Failed to download document for sharing', 'error');
+    }
   };
 
   const handleDescription = (doc) => {
@@ -241,11 +195,15 @@ const AssignedDocuments = () => {
       <div className="p-4 text-white">
         <h2 className="text-3xl font-bold mb-4">Assigned Documents</h2>
         <div className="bg-gray-800 p-4 rounded-lg shadow-lg">
-          {documents.length === 0 ? (
+          {loading ? (
+            <div className="text-center py-8">
+              <p className="text-gray-400 text-lg">Loading documents...</p>
+            </div>
+          ) : documents.length === 0 ? (
             <div className="text-center py-8">
               <p className="text-gray-400 text-lg">No documents found.</p>
               <p className="text-gray-500 text-sm mt-2">
-                Documents uploaded in DocumentsCategories will appear here.
+                Documents uploaded in Document Categories will appear here.
               </p>
             </div>
           ) : (
@@ -255,17 +213,19 @@ const AssignedDocuments = () => {
                   <th className="py-3 px-4">Document Name</th>
                   <th className="py-3 px-4">Category</th>
                   <th className="py-3 px-4">Author</th>
+                  <th className="py-3 px-4">Document Date</th>
                   <th className="py-3 px-4">Uploaded On</th>
                   <th className="py-3 px-4">Actions</th>
                 </tr>
               </thead>
               <tbody>
-                {documents.map((doc, index) => (
-                  <tr key={doc.id || index} className="border-b border-gray-700 hover:bg-gray-700">
+                {documents.map((doc) => (
+                  <tr key={doc.id} className="border-b border-gray-700 hover:bg-gray-700">
                     <td className="py-2 px-4">{doc.name}</td>
-                    <td className="py-2 px-4">{doc.category}</td>
+                    <td className="py-2 px-4">{doc.category_name}</td>
                     <td className="py-2 px-4">{doc.author}</td>
-                    <td className="py-2 px-4">{doc.date}</td>
+                    <td className="py-2 px-4">{new Date(doc.document_date).toLocaleDateString()}</td>
+                    <td className="py-2 px-4">{new Date(doc.created_at).toLocaleDateString()}</td>
                     <td className="py-2 px-4 space-x-2">
                       <button 
                         onClick={() => handlePreview(doc)} 
@@ -274,20 +234,24 @@ const AssignedDocuments = () => {
                       >
                         <FaEye />
                       </button>
-                      <button 
-                        onClick={() => handleEdit(doc)} 
-                        className="bg-blue-600 p-2 rounded hover:bg-blue-700"
-                        title="Edit"
-                      >
-                        <FaEdit />
-                      </button>
-                      <button 
-                        onClick={() => handleShare(doc)} 
-                        className="bg-orange-500 p-2 rounded hover:bg-orange-600"
-                        title="Share"
-                      >
-                        <FaShareAlt />
-                      </button>
+                      {hasPermission('edit_documents') && (
+                        <button 
+                          onClick={() => handleEdit(doc)} 
+                          className="bg-blue-600 p-2 rounded hover:bg-blue-700"
+                          title="Edit"
+                        >
+                          <FaEdit />
+                        </button>
+                      )}
+                      {hasPermission('share_documents') && (
+                        <button 
+                          onClick={() => handleShare(doc)} 
+                          className="bg-orange-500 p-2 rounded hover:bg-orange-600"
+                          title="Share"
+                        >
+                          <FaShareAlt />
+                        </button>
+                      )}
                       <button 
                         onClick={() => handleDescription(doc)} 
                         className="bg-yellow-500 p-2 rounded hover:bg-yellow-600"
@@ -295,13 +259,15 @@ const AssignedDocuments = () => {
                       >
                         <FaInfoCircle />
                       </button>
-                      <button 
-                        onClick={() => handleDelete(index)} 
-                        className="bg-red-600 p-2 rounded hover:bg-red-700"
-                        title="Delete"
-                      >
-                        <FaTrash />
-                      </button>
+                      {hasPermission('delete_documents') && (
+                        <button 
+                          onClick={() => handleDelete(doc)} 
+                          className="bg-red-600 p-2 rounded hover:bg-red-700"
+                          title="Delete"
+                        >
+                          <FaTrash />
+                        </button>
+                      )}
                     </td>
                   </tr>
                 ))}

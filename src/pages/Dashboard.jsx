@@ -6,17 +6,17 @@ import Calendar from "react-calendar";
 import "react-calendar/dist/Calendar.css";
 import "./Dashboard.css";
 import { Link, useNavigate } from "react-router-dom";
-import { auth } from "../firebase";
-import { onAuthStateChanged, signOut } from "firebase/auth";
+import { useAuth } from "../context/AuthContext";
 import { useTranslation } from "react-i18next";
-import i18n from "../i18n/i18n"; // Adjust the path if needed
+import i18n from "../i18n/i18n";
+import apiService from "../services/api";
 
 const COLORS = ["#0088FE", "#00C49F", "#FFBB28", "#FF8042", "#A020F0", "#8884D8"];
 
 const Dashboard = () => {
   const [date, setDate] = useState(new Date());
   const [docData, setDocData] = useState([]);
-  const [user, setUser] = useState(null);
+  const [documents, setDocuments] = useState([]);
   const [showNotifications, setShowNotifications] = useState(false);
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const [language, setLanguage] = useState("English");
@@ -24,35 +24,42 @@ const Dashboard = () => {
 
   const navigate = useNavigate();
   const { t } = useTranslation();
+  const { user, logout } = useAuth();
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
-      if (user) {
-        setUser(user);
-      } else {
-        navigate("/");
-      }
-    });
+    if (!user) {
+      navigate("/");
+      return;
+    }
 
-    const data = JSON.parse(localStorage.getItem("documents")) || [];
+    loadDocuments();
+  }, [user, navigate]);
 
-    const categoryCounts = data.reduce((acc, doc) => {
-      acc[doc.category] = (acc[doc.category] || 0) + 1;
-      return acc;
-    }, {});
+  const loadDocuments = async () => {
+    try {
+      const docs = await apiService.getDocuments();
+      setDocuments(docs);
 
-    const pieData = Object.entries(categoryCounts).map(([category, count]) => ({
-      name: category,
-      value: count,
-    }));
+      // Process data for pie chart
+      const categoryCounts = docs.reduce((acc, doc) => {
+        const category = doc.category_name || 'Others';
+        acc[category] = (acc[category] || 0) + 1;
+        return acc;
+      }, {});
 
-    setDocData(pieData);
+      const pieData = Object.entries(categoryCounts).map(([category, count]) => ({
+        name: category,
+        value: count,
+      }));
 
-    return () => unsubscribe();
-  }, [navigate]);
+      setDocData(pieData);
+    } catch (error) {
+      console.error('Error loading documents:', error);
+    }
+  };
 
-  const handleLogout = async () => {
-    await signOut(auth);
+  const handleLogout = () => {
+    logout();
     navigate("/");
   };
 
@@ -89,7 +96,7 @@ const Dashboard = () => {
             >🔔</button>
             {showNotifications && (
               <div className="dropdown-content">
-                <p>{t('noNotifications')}</p>
+                <p>{t('noNotifications') || 'No new notifications'}</p>
               </div>
             )}
           </div>
@@ -103,9 +110,10 @@ const Dashboard = () => {
             >👤</button>
             {showProfileMenu && user && (
               <div className="dropdown-content">
-                <p><strong>{user.displayName || t('noName')}</strong></p>
+                <p><strong>{user.first_name} {user.last_name}</strong></p>
                 <p>{user.email}</p>
                 <hr />
+                <p>Roles: {user.roles?.map(r => r.name).join(', ') || 'None'}</p>
               </div>
             )}
           </div>
@@ -170,10 +178,9 @@ const Dashboard = () => {
               value={date}
               className="calendar-widget"
               tileContent={({ date }) => {
-                const allDocuments = JSON.parse(localStorage.getItem("documents")) || [];
-                const count = allDocuments.filter(
+                const count = documents.filter(
                   (doc) =>
-                    new Date(doc.date).toDateString() === date.toDateString()
+                    new Date(doc.document_date).toDateString() === date.toDateString()
                 ).length;
 
                 return count > 0 ? (

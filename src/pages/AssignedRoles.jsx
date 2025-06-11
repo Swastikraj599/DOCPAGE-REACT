@@ -1,13 +1,19 @@
 import React, { useState, useEffect } from 'react';
 import './AssignedRoles.css';
 import Layout from '../components/Layout';
+import apiService from '../services/api';
+import { useAuth } from '../context/AuthContext';
+import Swal from 'sweetalert2';
 
 const AssignedRolesPage = () => {
+  const { hasPermission } = useAuth();
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [loading, setLoading] = useState(false);
 
   const [assignedRoles, setAssignedRoles] = useState([]);
+  const [availableRoles, setAvailableRoles] = useState([]);
 
   const [formData, setFormData] = useState({
     firstName: '',
@@ -21,24 +27,30 @@ const AssignedRolesPage = () => {
 
   const [errors, setErrors] = useState({});
 
-  const roleOptions = [
-    'Administrator',
-    'Manager',
-    'Supervisor',
-    'Team Lead',
-    'Employee',
-    'Analyst',
-    'Coordinator',
-    'Intern'
-  ];
-
-  // ✅ Load roles from localStorage on initial mount
+  // Load assigned roles and available roles on mount
   useEffect(() => {
-    const savedRoles = localStorage.getItem('assignedRoles');
-    if (savedRoles) {
-      setAssignedRoles(JSON.parse(savedRoles));
-    }
+    loadAssignedRoles();
+    loadAvailableRoles();
   }, []);
+
+  const loadAssignedRoles = async () => {
+    try {
+      const roles = await apiService.getAssignedRoles();
+      setAssignedRoles(roles);
+    } catch (error) {
+      console.error('Error loading assigned roles:', error);
+      Swal.fire('Error', 'Failed to load assigned roles', 'error');
+    }
+  };
+
+  const loadAvailableRoles = async () => {
+    try {
+      const roles = await apiService.getRoles();
+      setAvailableRoles(roles);
+    } catch (error) {
+      console.error('Error loading available roles:', error);
+    }
+  };
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
@@ -98,39 +110,52 @@ const AssignedRolesPage = () => {
     return Object.keys(newErrors).length === 0;
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
 
+    if (!hasPermission('assign_roles')) {
+      Swal.fire('Access Denied', 'You do not have permission to assign roles', 'error');
+      return;
+    }
+
     if (validateForm()) {
-      const newRole = {
-        id: assignedRoles.length + 1,
-        firstName: formData.firstName,
-        lastName: formData.lastName,
-        email: formData.email,
-        phoneNumber: formData.phoneNumber,
-        role: formData.role,
-        createdDate: new Date().toISOString().split('T')[0]
-      };
+      try {
+        setLoading(true);
+        
+        await apiService.createRoleAssignment({
+          firstName: formData.firstName,
+          lastName: formData.lastName,
+          email: formData.email,
+          phoneNumber: formData.phoneNumber,
+          password: formData.password,
+          role: formData.role
+        });
 
-      const updatedRoles = [...assignedRoles, newRole];
-      setAssignedRoles(updatedRoles);
+        // Reset form
+        setFormData({
+          firstName: '',
+          lastName: '',
+          email: '',
+          phoneNumber: '',
+          password: '',
+          confirmPassword: '',
+          role: ''
+        });
 
-      // ✅ Save to localStorage
-      localStorage.setItem('assignedRoles', JSON.stringify(updatedRoles));
-
-      setFormData({
-        firstName: '',
-        lastName: '',
-        email: '',
-        phoneNumber: '',
-        password: '',
-        confirmPassword: '',
-        role: ''
-      });
-
-      setIsFormOpen(false);
-      setShowPassword(false);
-      setShowConfirmPassword(false);
+        setIsFormOpen(false);
+        setShowPassword(false);
+        setShowConfirmPassword(false);
+        
+        // Reload assigned roles
+        await loadAssignedRoles();
+        
+        Swal.fire('Success!', 'User created and role assigned successfully!', 'success');
+      } catch (error) {
+        console.error('Error creating role assignment:', error);
+        Swal.fire('Error', error.message || 'Failed to create role assignment', 'error');
+      } finally {
+        setLoading(false);
+      }
     }
   };
 
@@ -150,6 +175,14 @@ const AssignedRolesPage = () => {
     setShowConfirmPassword(false);
   };
 
+  const handleCreateRoles = () => {
+    if (!hasPermission('assign_roles')) {
+      Swal.fire('Access Denied', 'You do not have permission to assign roles', 'error');
+      return;
+    }
+    setIsFormOpen(true);
+  };
+
   return (
     <Layout>
       <div className="assigned-roles-container">
@@ -166,7 +199,7 @@ const AssignedRolesPage = () => {
                 <p>Manage user roles and permissions</p>
               </div>
             </div>
-            <button onClick={() => setIsFormOpen(true)} className="create-btn">
+            <button onClick={handleCreateRoles} className="create-btn">
               <span className="text-xl mr-2">➕</span>
               <span>Create Roles</span>
             </button>
@@ -182,25 +215,23 @@ const AssignedRolesPage = () => {
               <table className="data-table">
                 <thead className="table-head">
                   <tr>
-                    <th>ID</th>
                     <th>First Name</th>
                     <th>Last Name</th>
                     <th>Email</th>
                     <th>Phone Number</th>
                     <th>Role</th>
-                    <th>Created Date</th>
+                    <th>Assigned Date</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {assignedRoles.map(role => (
-                    <tr key={role.id} className="table-row">
-                      <td>{role.id}</td>
-                      <td>{role.firstName}</td>
-                      <td>{role.lastName}</td>
+                  {assignedRoles.map((role, index) => (
+                    <tr key={index} className="table-row">
+                      <td>{role.first_name}</td>
+                      <td>{role.last_name}</td>
                       <td>{role.email}</td>
-                      <td>{role.phoneNumber}</td>
+                      <td>{role.phone_number}</td>
                       <td><span className="role-badge">{role.role}</span></td>
-                      <td>{role.createdDate}</td>
+                      <td>{new Date(role.created_date).toLocaleDateString()}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -221,7 +252,7 @@ const AssignedRolesPage = () => {
             <div className="modal-overlay">
               <div className="modal-content">
                 <div className="modal-header">
-                  <h3 className="modal-title">Create New Role</h3>
+                  <h3 className="modal-title">Create New Role Assignment</h3>
                   <button onClick={handleCancel} className="close-btn">
                     <span className="text-white text-xl">✕</span>
                   </button>
@@ -230,14 +261,16 @@ const AssignedRolesPage = () => {
                 <div className="form-content">
                   {['firstName', 'lastName', 'email', 'phoneNumber'].map((field) => (
                     <div key={field} className="form-group">
-                      <label className="form-label">{field.replace(/([A-Z])/g, ' $1')} *</label>
+                      <label className="form-label">
+                        {field.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase())} *
+                      </label>
                       <input
                         type={field === 'email' ? 'email' : 'text'}
                         name={field}
                         value={formData[field]}
                         onChange={handleInputChange}
                         className="form-input"
-                        placeholder={`Enter ${field}`}
+                        placeholder={`Enter ${field.replace(/([A-Z])/g, ' $1').toLowerCase()}`}
                       />
                       {errors[field] && <p className="error-message">{errors[field]}</p>}
                     </div>
@@ -296,16 +329,25 @@ const AssignedRolesPage = () => {
                       className="form-select"
                     >
                       <option value="">Select a role</option>
-                      {roleOptions.map(role => (
-                        <option key={role} value={role}>{role}</option>
+                      {availableRoles.map(role => (
+                        <option key={role.id} value={role.name}>{role.name}</option>
                       ))}
                     </select>
                     {errors.role && <p className="error-message">{errors.role}</p>}
                   </div>
 
                   <div className="form-buttons">
-                    <button type="button" onClick={handleCancel} className="btn-secondary">Cancel</button>
-                    <button type="submit" onClick={handleSubmit} className="btn-primary">Create Role</button>
+                    <button type="button" onClick={handleCancel} className="btn-secondary">
+                      Cancel
+                    </button>
+                    <button 
+                      type="submit" 
+                      onClick={handleSubmit} 
+                      className="btn-primary"
+                      disabled={loading}
+                    >
+                      {loading ? 'Creating...' : 'Create Role'}
+                    </button>
                   </div>
                 </div>
               </div>
